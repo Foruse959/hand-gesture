@@ -1,0 +1,13 @@
+frontend/node_modules/
+frontend/dist/
+backend/data/*.json
+backend/.venv/
+desktop_agent/.venv/
+desktop_agent/config.json
+desktop_agent/config.json.enc
+desktop_agent/*.key
+desktop_agent/models/
+__pycache__/
+*.pyc
+.DS_Store
+.env
