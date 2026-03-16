@@ -1,0 +1,6 @@
+mediapipe==0.10.32
+opencv-python>=4.10.0.84,<5
+numpy>=2.4,<2.5
+requests>=2.32.3,<3
+pyautogui>=0.9.54,<1
+cryptography>=44.0.1,<46

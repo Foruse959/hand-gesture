@@ -1,0 +1,22 @@
+{
+  "backend_url": "http://127.0.0.1:8000",
+  "profile_id": "",
+  "context": "global",
+  "min_confidence": 0.55,
+  "sequence_length": 16,
+  "predict_interval_ms": 180,
+  "allow_remote_backend": false,
+  "pointer_enabled": true,
+  "pointer_smoothing": 0.72,
+  "click_enabled": true,
+  "pinch_click_threshold": 0.055,
+  "scroll_enabled": true,
+  "scroll_sensitivity": 1800,
+  "action_cooldown_ms": 2000,
+  "show_preview": true,
+  "camera_index": -1,
+  "camera_scan_max": 5,
+  "camera_backend": "auto",
+  "camera_width": 640,
+  "camera_height": 480
+}
