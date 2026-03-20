@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import './App.css'
 import { CameraOverlay } from './components/CameraOverlay.tsx'
 import { LightweightGestureLab } from './components/LightweightGestureLab.tsx'
+import { ProfileManagerPage } from './components/ProfileManagerPage'
 
 type DashboardSnapshot = {
   sessions: number
@@ -12,6 +13,90 @@ type DashboardSnapshot = {
   best_latency_ms: number
 }
 
+type AppPage = 'studio' | 'profiles' | 'project' | 'about'
+
+const PAGE_ITEMS: Array<{ id: AppPage; label: string; detail: string }> = [
+  {
+    id: 'studio',
+    label: 'Studio',
+    detail: 'Train and run profiles live.',
+  },
+  {
+    id: 'profiles',
+    label: 'Profiles',
+    detail: 'Manage actions and gesture labels.',
+  },
+  {
+    id: 'project',
+    label: 'Project',
+    detail: 'Architecture and capability highlights.',
+  },
+  {
+    id: 'about',
+    label: 'About',
+    detail: 'Goals, direction, and API quick links.',
+  },
+]
+
+const STUDIO_STEPS: Array<{ step: string; title: string; detail: string }> = [
+  {
+    step: '01',
+    title: 'Open Studio',
+    detail: 'Start with your profile and camera workflow in one clear vertical flow.',
+  },
+  {
+    step: '02',
+    title: 'Train Gestures',
+    detail: 'Capture static and motion gestures, then inspect confidence before execution.',
+  },
+  {
+    step: '03',
+    title: 'Manage in Profiles',
+    detail: 'Edit designed actions and labels on a dedicated management page.',
+  },
+  {
+    step: '04',
+    title: 'Start Live Profile',
+    detail: 'Run your selected profile with cleaner spacing and reduced visual clutter.',
+  },
+]
+
+const PROJECT_PILLARS: Array<{ title: string; detail: string; note: string }> = [
+  {
+    title: 'Adaptive Gesture Intelligence',
+    detail: 'Two inference tracks: lightweight prototype matching and deep ResNet + LSTM support.',
+    note: 'Optimized for custom labels and user-specific training.',
+  },
+  {
+    title: 'Live Interaction Design',
+    detail: 'Studio, Profiles, and camera panel cooperate without crowding each other.',
+    note: 'Purposefully designed for usability, not only demos.',
+  },
+  {
+    title: 'System Expansion Ready',
+    detail: 'Desktop companion can execute mapped commands outside the browser when needed.',
+    note: 'Web-first workflow with optional OS-level extension path.',
+  },
+]
+
+const ABOUT_POINTS = [
+  {
+    label: 'Vision',
+    title: 'Human-first interaction',
+    detail: 'Enable practical gesture automation with confidence-aware behavior and clean workflows.',
+  },
+  {
+    label: 'Engineering',
+    title: 'Hybrid inference architecture',
+    detail: 'Fast lightweight inference for responsiveness plus deep model support for harder classes.',
+  },
+  {
+    label: 'Product',
+    title: 'Profile-centric operations',
+    detail: 'Profiles own labels, training state, and mapped actions so users can manage behavior cleanly.',
+  },
+]
+
 function formatPercent(value: number) {
   return `${(value * 100).toFixed(1)}%`
 }
@@ -19,6 +104,8 @@ function formatPercent(value: number) {
 function App() {
   const [backendOnline, setBackendOnline] = useState(false)
   const [dashboard, setDashboard] = useState<DashboardSnapshot | null>(null)
+  const [activePage, setActivePage] = useState<AppPage>('studio')
+  const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
     void bootstrap()
@@ -64,198 +151,209 @@ function App() {
     }
   }
 
+  const currentPageMeta = useMemo(
+    () => PAGE_ITEMS.find((item) => item.id === activePage) ?? PAGE_ITEMS[0],
+    [activePage],
+  )
+
+  function handleSelectPage(page: AppPage) {
+    setActivePage(page)
+    setMenuOpen(false)
+  }
+
   return (
-    <div className="app-shell app-shell-pro">
-      <header className="site-header product-header">
-        <div>
-          <p className="eyebrow">Gesture Control Platform</p>
-          <div className="brand-row">
-            <h1>Dynamic Gesture Studio</h1>
-            <span className={`status-pill ${backendOnline ? 'online' : 'offline'}`}>
-              {backendOnline ? 'Backend online' : 'Backend offline'}
-            </span>
-          </div>
-          <p className="product-subtitle">
-            Train your own gestures, map real actions, and run a live hand-controlled workflow.
+    <div className="app-shell-v2">
+      <header className="app-toolbar">
+        <button
+          type="button"
+          className={`menu-toggle ${menuOpen ? 'open' : ''}`}
+          aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((value) => !value)}
+        >
+          <span />
+          <span />
+          <span />
+        </button>
+
+        <div className="toolbar-brand">
+          <p className="eyebrow">Gesture Workspace</p>
+          <h1>Dynamic Gesture Studio</h1>
+          <p className="toolbar-page-caption">
+            {currentPageMeta.label}: {currentPageMeta.detail}
           </p>
         </div>
 
-        <nav className="top-nav">
-          <a href="#quick-start">Quick start</a>
-          <a href="#lightweight-lab">Live lab</a>
-          <a href="#showcase">Pointer demo</a>
-          <a href="#help">Help</a>
-        </nav>
+        <div className="toolbar-status-strip">
+          <span className={`status-pill status-main ${backendOnline ? 'online' : 'offline'}`}>
+            {backendOnline ? 'Backend online' : 'Backend offline'}
+          </span>
+          <span className="status-pill status-subtle">
+            {dashboard ? `${dashboard.samples} samples tracked` : 'No samples yet'}
+          </span>
+          <span className="status-pill status-subtle">
+            {dashboard ? `${formatPercent(dashboard.average_accuracy)} avg accuracy` : '0.0% avg accuracy'}
+          </span>
+        </div>
       </header>
 
-      <main className="main-layout product-layout">
-        <section className="hero-panel product-hero">
-          <div className="hero-copy">
-            <p className="hero-kicker">Professional mode: practical, not documentation-heavy</p>
-            <h2>
-              Build your own hand gesture profile and use it for browser actions, typing, and live control.
-            </h2>
-            <p className="hero-summary">
-              The app now focuses on operation first: create profile, train quickly, and go live. You can hide or dock
-              the camera side panel, view tracking points, and use a virtual pointer while testing.
-            </p>
+      <aside className={`page-drawer ${menuOpen ? 'open' : ''}`} aria-hidden={!menuOpen}>
+        <p className="drawer-title">Navigation</p>
+        <div className="drawer-nav-list">
+          {PAGE_ITEMS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`drawer-nav-item ${activePage === item.id ? 'active' : ''}`}
+              onClick={() => handleSelectPage(item.id)}
+            >
+              <strong>{item.label}</strong>
+              <span>{item.detail}</span>
+            </button>
+          ))}
+        </div>
 
-            <div className="hero-actions">
-              <a className="primary-button" href="#lightweight-lab">
-                Start now
-              </a>
-              <a className="secondary-button" href="#quick-start">
-                2-minute setup
-              </a>
-            </div>
+        <div className="drawer-mini-kpi">
+          <div>
+            <span>Jobs</span>
+            <strong>{dashboard?.jobs ?? 0}</strong>
           </div>
+          <div>
+            <span>Sessions</span>
+            <strong>{dashboard?.sessions ?? 0}</strong>
+          </div>
+          <div>
+            <span>Best latency</span>
+            <strong>{dashboard ? `${dashboard.best_latency_ms.toFixed(1)} ms` : '0.0 ms'}</strong>
+          </div>
+        </div>
+      </aside>
 
-          <div className="hero-side">
-            <article className="glass-card emphasis-card quick-card">
-              <span className="mini-label">Live status</span>
-              <div className="kpi-list">
-                <div>
-                  <span>Profiles/sessions</span>
-                  <strong>{dashboard?.sessions ?? 0}</strong>
-                </div>
-                <div>
-                  <span>Captured samples</span>
-                  <strong>{dashboard?.samples ?? 0}</strong>
-                </div>
-                <div>
-                  <span>Training jobs</span>
-                  <strong>{dashboard?.jobs ?? 0}</strong>
-                </div>
-                <div>
-                  <span>Avg accuracy</span>
-                  <strong>{dashboard ? formatPercent(dashboard.average_accuracy) : '0.0%'}</strong>
-                </div>
-                <div>
-                  <span>Best latency</span>
-                  <strong>{dashboard ? `${dashboard.best_latency_ms.toFixed(1)} ms` : '0.0 ms'}</strong>
+      {menuOpen && (
+        <button
+          type="button"
+          className="drawer-backdrop"
+          aria-label="Close menu"
+          onClick={() => setMenuOpen(false)}
+        />
+      )}
+
+      <main className="page-main">
+        {activePage === 'studio' && (
+          <section className="page-shell">
+            <section className="hero-panel-v2">
+              <div>
+                <p className="hero-kicker">Studio mode</p>
+                <h2>Clear training flow with dedicated management pages.</h2>
+                <p className="hero-summary">
+                  This view now focuses on capture and live execution. Profile management moved to a separate page to keep camera and workflow unobstructed.
+                </p>
+              </div>
+              <div className="hero-side-v2">
+                <div className="kpi-list-v2">
+                  <div>
+                    <span>Sessions</span>
+                    <strong>{dashboard?.sessions ?? 0}</strong>
+                  </div>
+                  <div>
+                    <span>Samples</span>
+                    <strong>{dashboard?.samples ?? 0}</strong>
+                  </div>
+                  <div>
+                    <span>Training jobs</span>
+                    <strong>{dashboard?.jobs ?? 0}</strong>
+                  </div>
                 </div>
               </div>
-            </article>
-          </div>
-        </section>
+            </section>
 
-        <section id="quick-start" className="glass-card quick-start-shell">
-          <div className="section-heading">
-            <p className="eyebrow">Quick start</p>
-            <h3>Do these 4 steps in order</h3>
-          </div>
+            <section className="quick-steps-v2 glass-card">
+              <div className="section-heading">
+                <p className="eyebrow">Workflow</p>
+                <h3>Use this order for best result</h3>
+              </div>
+              <div className="quick-steps-grid">
+                {STUDIO_STEPS.map((item) => (
+                  <article key={item.step} className="quick-step-card">
+                    <span>Step {item.step}</span>
+                    <h4>{item.title}</h4>
+                    <p>{item.detail}</p>
+                  </article>
+                ))}
+              </div>
+            </section>
 
-          <div className="quick-steps-grid">
-            <article className="quick-step-card">
-              <span>Step 1</span>
-              <h4>Create profile</h4>
-              <p>
-                Enter gesture labels in the Profile card and click <strong>Create profile</strong>.
+            <LightweightGestureLab backendOnline={backendOnline} />
+          </section>
+        )}
+
+        {activePage === 'profiles' && (
+          <ProfileManagerPage backendOnline={backendOnline} />
+        )}
+
+        {activePage === 'project' && (
+          <section className="page-shell">
+            <section className="glass-card">
+              <div className="section-heading">
+                <p className="eyebrow">Project</p>
+                <h3>Platform highlights</h3>
+              </div>
+              <div className="showcase-grid project-page-shell">
+                {PROJECT_PILLARS.map((item) => (
+                  <article key={item.title} className="glass-card showcase-notes project-pillars-card">
+                    <h4>{item.title}</h4>
+                    <p className="muted-copy">{item.detail}</p>
+                    <p className="pillar-note">{item.note}</p>
+                  </article>
+                ))}
+              </div>
+            </section>
+          </section>
+        )}
+
+        {activePage === 'about' && (
+          <section className="page-shell">
+            <section className="glass-card help-shell about-shell">
+              <div className="section-heading">
+                <p className="eyebrow">About</p>
+                <h3>Built for practical gesture interaction</h3>
+              </div>
+              <p className="muted-copy about-intro">
+                Dynamic Gesture Studio is focused on reliable user-defined gestures, profile-level control, and clear management UX.
               </p>
-            </article>
-            <article className="quick-step-card">
-              <span>Step 2</span>
-              <h4>Start camera + train</h4>
-              <p>
-                Start webcam, keep hand visible, then click <strong>Capture + train</strong> for each gesture 4-8 times.
-              </p>
-            </article>
-            <article className="quick-step-card">
-              <span>Step 3</span>
-              <h4>Map actions</h4>
-              <p>
-                In Action mapping, connect gestures to URL/app/hotkey actions and save.
-              </p>
-            </article>
-            <article className="quick-step-card">
-              <span>Step 4</span>
-              <h4>Go live</h4>
-              <p>
-                Enable <strong>Live recognition mode</strong>. If needed, enable auto execute.
-              </p>
-            </article>
-          </div>
-        </section>
+              <div className="about-pillars-grid">
+                {ABOUT_POINTS.map((item) => (
+                  <article key={item.title} className="api-card about-card">
+                    <span className="api-method">{item.label}</span>
+                    <strong>{item.title}</strong>
+                    <p>{item.detail}</p>
+                  </article>
+                ))}
+              </div>
 
-        <section className="glass-card beginner-notes-shell">
-          <div className="section-heading">
-            <p className="eyebrow">Beginner notes</p>
-            <h3>What "profile" and "session" mean</h3>
-          </div>
-          <div className="quick-faq-grid">
-            <article>
-              <h4>Profile</h4>
-              <p>
-                Your personal gesture model. It stores labels and learned gesture patterns.
-              </p>
-            </article>
-            <article>
-              <h4>Session</h4>
-              <p>
-                Backend run history for dataset/training benchmarking. Optional for basic live control.
-              </p>
-            </article>
-            <article>
-              <h4>Where is the pointer?</h4>
-              <p>
-                Open the floating camera panel. Start camera and turn on pointer mode. A virtual pointer follows your
-                index fingertip.
-              </p>
-            </article>
-          </div>
-        </section>
-
-        <LightweightGestureLab backendOnline={backendOnline} />
-
-        <section id="showcase" className="showcase-shell">
-          <div className="section-heading">
-            <p className="eyebrow">Pointer demo app</p>
-            <h3>Try hand pointer interactions in the embedded legacy module</h3>
-          </div>
-
-          <div className="showcase-grid">
-            <article className="glass-card showcase-notes">
-              <h4>Use this for demo day</h4>
-              <ul className="feature-list">
-                <li>Open camera overlay and enable pointer mode.</li>
-                <li>Use this page to show visible hand-tracking and cursor-like control.</li>
-                <li>Use Live Lab for training and action mapping, then show this module for wow factor.</li>
-              </ul>
-            </article>
-
-            <article className="iframe-shell">
-              <iframe title="Legacy Gesture Shop" src="/legacy/gesture-shop.html" />
-            </article>
-          </div>
-        </section>
-
-        <section id="help" className="glass-card help-shell">
-          <div className="section-heading">
-            <p className="eyebrow">Use outside webpage</p>
-            <h3>Profiles can be reused through API</h3>
-          </div>
-          <p className="muted-copy">
-            Your trained profile is stored on backend. You can call API endpoints from another app/script to run
-            prediction or execute mapped actions.
-          </p>
-          <div className="api-mini-grid">
-            <article className="api-card">
-              <span className="api-method">GET</span>
-              <strong>/api/light/profiles</strong>
-              <p>List stored profiles.</p>
-            </article>
-            <article className="api-card">
-              <span className="api-method">POST</span>
-              <strong>/api/light/predict</strong>
-              <p>Predict gesture from landmark sequence.</p>
-            </article>
-            <article className="api-card">
-              <span className="api-method">POST</span>
-              <strong>/api/light/execute</strong>
-              <p>Trigger mapped action by label/context.</p>
-            </article>
-          </div>
-        </section>
+              <div className="about-api-block">
+                <h4>API quick reference</h4>
+                <div className="api-mini-grid">
+                  <article className="api-card">
+                    <span className="api-method">GET</span>
+                    <strong>/api/light/profiles</strong>
+                    <p>List stored profiles.</p>
+                  </article>
+                  <article className="api-card">
+                    <span className="api-method">POST</span>
+                    <strong>/api/light/predict</strong>
+                    <p>Predict gesture from landmark sequence.</p>
+                  </article>
+                  <article className="api-card">
+                    <span className="api-method">POST</span>
+                    <strong>/api/light/execute</strong>
+                    <p>Trigger mapped action by label and context.</p>
+                  </article>
+                </div>
+              </div>
+            </section>
+          </section>
+        )}
       </main>
 
       <CameraOverlay backendOnline={backendOnline} />

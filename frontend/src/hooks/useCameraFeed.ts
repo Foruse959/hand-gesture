@@ -5,6 +5,7 @@ type CameraState = 'idle' | 'starting' | 'streaming' | 'error'
 export function useCameraFeed() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const ownerIdRef = useRef(`camera-feed-${Math.random().toString(36).slice(2)}`)
   const [state, setState] = useState<CameraState>('idle')
   const [error, setError] = useState<string>('')
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
@@ -46,6 +47,12 @@ export function useCameraFeed() {
     setError('')
 
     try {
+      window.dispatchEvent(
+        new CustomEvent('dgs-camera-request', {
+          detail: { source: ownerIdRef.current },
+        }),
+      )
+
       stop()
 
       const attempts: MediaStreamConstraints[] = []
@@ -108,6 +115,34 @@ export function useCameraFeed() {
   useEffect(() => {
     void refreshDevices()
   }, [refreshDevices])
+
+  useEffect(() => {
+    const onCameraRequest = (event: Event) => {
+      const custom = event as CustomEvent<{ source?: string }>
+      const source = custom.detail?.source ?? ''
+      if (source && source !== ownerIdRef.current && streamRef.current) {
+        stop()
+      }
+    }
+
+    window.addEventListener('dgs-camera-request', onCameraRequest as EventListener)
+    return () => {
+      window.removeEventListener('dgs-camera-request', onCameraRequest as EventListener)
+    }
+  }, [stop])
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.hidden && streamRef.current) {
+        stop()
+      }
+    }
+
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [stop])
 
   useEffect(() => stop, [stop])
 

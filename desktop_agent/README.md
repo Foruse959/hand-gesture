@@ -99,7 +99,8 @@ python agent.py --config config.json --camera-index 0 --camera-backend msmf
 ## What it controls
 
 - cursor move (index fingertip)
-- pinch click (thumb-index pinch)
+- pinch click (default)
+- optional folded-index click mode (`click_gesture: "index_fold"`)
 - two-finger scroll
 - mapped actions from backend profile:
 	- `open_url`
@@ -157,3 +158,22 @@ python agent.py --config config.json.enc
 - Frames are processed locally on your machine.
 - Localhost backend is enforced by default unless `allow_remote_backend=true`.
 - Test with safe mappings first because actions affect whatever app is active.
+
+## Pointer steadiness and click tuning
+
+If pointer is shaky or click feels too sensitive, tune in `config.json`:
+
+- `pointer_smoothing` (lower = steadier, slower)
+- `pointer_fast_smoothing` (higher = more reactive on large movement)
+- `pointer_deadzone` (higher = less micro-jitter)
+- `pointer_click_lock_ms` (longer = more pointer freeze after pinch click)
+- `pointer_click_lock_alpha` (lower = less pointer drift while pinching)
+- `pointer_click_lock_threshold` (small movement under this stays locked during pinch)
+- `click_gesture` (`pinch` or `index_fold`)
+- `pinch_click_down_ratio` (lower = harder pinch required)
+- `pinch_click_up_ratio` (higher = cleaner release, less bounce)
+- `pinch_click_secondary_factor` (adds thumb-index-joint tolerance for hand tilt)
+- `pinch_click_base_factor` (adds thumb-base/index-tip tolerance for tilt)
+- `pinch_quick_close_bonus` and `pinch_quick_close_velocity` (faster pinch recognition without overshoot)
+- `click_min_cooldown_ms` (higher = fewer accidental repeated clicks)
+- `index_fold_click_offset` (higher = requires deeper index fold, only for index_fold mode)

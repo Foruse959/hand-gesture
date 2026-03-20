@@ -22,6 +22,8 @@ class GestureClassState(BaseModel):
     label: str
     samples: int = 0
     prototype: list[float] = Field(default_factory=list)
+    prototype_bank: list[list[float]] = Field(default_factory=list)
+    prototype_bank_counts: list[int] = Field(default_factory=list)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -66,7 +68,7 @@ class PredictionResult(BaseModel):
 
 class MappingUpdateRequest(BaseModel):
     profile_id: str
-    context: str = Field(default="global", min_length=1, max_length=40)
+    context: str = Field(default="global", min_length=1, max_length=120)
     label: str = Field(..., min_length=1, max_length=40)
     action_type: ActionType = "none"
     value: str = ""
@@ -77,7 +79,18 @@ class MappingUpdateRequest(BaseModel):
 
 class ExecuteMappingRequest(BaseModel):
     profile_id: str
-    context: str = Field(default="global", min_length=1, max_length=40)
+    context: str = Field(default="global", min_length=1, max_length=120)
+    label: str = Field(..., min_length=1, max_length=40)
+
+
+class GestureRenameRequest(BaseModel):
+    profile_id: str
+    old_label: str = Field(..., min_length=1, max_length=40)
+    new_label: str = Field(..., min_length=1, max_length=40)
+
+
+class GestureDeleteRequest(BaseModel):
+    profile_id: str
     label: str = Field(..., min_length=1, max_length=40)
 
 
@@ -93,3 +106,19 @@ class TrainResult(BaseModel):
     samples: int
     total_classes: int
     sequence_frames: int
+
+
+class TrainClipRequest(BaseModel):
+    profile_id: str
+    label: str = Field(..., min_length=1, max_length=40)
+    clip: list[list[list[float | int | dict]]]
+    sample_count: int = Field(default=6, ge=2, le=20)
+
+
+class TrainClipResult(BaseModel):
+    profile_id: str
+    label: str
+    samples_added: int
+    samples: int
+    total_classes: int
+    clip_frames: int

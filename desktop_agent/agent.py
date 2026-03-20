@@ -37,13 +37,32 @@ class AgentConfig:
     allow_remote_backend: bool = False
 
     pointer_enabled: bool = True
-    pointer_smoothing: float = 0.72
+    pointer_smoothing: float = 0.42
+    pointer_fast_smoothing: float = 0.62
+    pointer_deadzone: float = 0.006
+    pointer_click_lock_ms: int = 220
+    pointer_click_lock_alpha: float = 0.08
+    pointer_click_lock_threshold: float = 0.07
     click_enabled: bool = True
+    click_gesture: str = "pinch"
+    click_min_cooldown_ms: int = 500
+    pinch_click_down_ratio: float = 0.36
+    pinch_click_up_ratio: float = 0.5
+    pinch_click_secondary_factor: float = 1.08
+    pinch_click_base_factor: float = 1.1
+    pinch_quick_close_bonus: float = 0.04
+    pinch_quick_close_velocity: float = -0.012
+    index_fold_click_offset: float = 0.038
+    index_fold_min_cooldown_ms: int = 550
     pinch_click_threshold: float = 0.055
     scroll_enabled: bool = True
     scroll_sensitivity: int = 1800
 
     action_cooldown_ms: int = 2000
+    non_pinch_stable_votes: int = 3
+    pinch_stable_votes: int = 2
+    action_confidence_boost_non_pinch: float = 0.1
+    action_confidence_boost_pinch: float = 0.04
     show_preview: bool = True
 
     camera_index: int = -1
@@ -323,7 +342,11 @@ class PointerController:
         self.cfg = cfg
         self.pointer_x = 0.5
         self.pointer_y = 0.5
-        self.pinch_latched = False
+        self.click_latched = False
+        self.last_click_ms = 0.0
+        self.pointer_lock_until_ms = 0.0
+        self.pinch_active = False
+        self.last_pinch_ratio = 1.0
         self.scroll_anchor_y: float | None = None
 
     @staticmethod
@@ -335,18 +358,99 @@ class PointerController:
         return tip[1] < pip[1]
 
     def reset_hand_state(self) -> None:
-        self.pinch_latched = False
+        self.click_latched = False
+        self.pinch_active = False
+        self.last_pinch_ratio = 1.0
+        self.pointer_lock_until_ms = 0.0
         self.scroll_anchor_y = None
+
+    def _pointer_alpha(self, movement: float) -> float:
+        if movement > 0.11:
+            return self.cfg.pointer_fast_smoothing
+        return self.cfg.pointer_smoothing
+
+    def _index_fold_click(self, landmarks: list[list[float]]) -> bool:
+        if len(landmarks) < 13:
+            return False
+        index_tip = landmarks[8]
+        index_pip = landmarks[6]
+        index_mcp = landmarks[5]
+        middle_tip = landmarks[12]
+        middle_pip = landmarks[10]
+
+        index_folded = index_tip[1] > (index_pip[1] + self.cfg.index_fold_click_offset) and index_pip[1] > index_mcp[1]
+        middle_extended = middle_tip[1] < (middle_pip[1] - 0.01)
+        return index_folded and middle_extended
+
+    def _pinch_click(self, landmarks: list[list[float]], now_ms: float) -> bool:
+        if len(landmarks) < 18:
+            return False
+
+        thumb_index_tip = self._distance(landmarks[4], landmarks[8])
+        thumb_index_joint = self._distance(landmarks[4], landmarks[7]) if len(landmarks) > 7 else thumb_index_tip
+        thumb_index_base = self._distance(landmarks[3], landmarks[8]) if len(landmarks) > 8 else thumb_index_tip
+        palm_width = self._distance(landmarks[5], landmarks[17])
+        palm_depth = self._distance(landmarks[0], landmarks[9])
+        palm_scale = max(0.04, (palm_width + palm_depth) / 2.0)
+
+        pinch_distance = min(
+            thumb_index_tip,
+            thumb_index_joint * self.cfg.pinch_click_secondary_factor,
+            thumb_index_base * self.cfg.pinch_click_base_factor,
+        )
+        ratio = pinch_distance / palm_scale
+        ratio_velocity = ratio - self.last_pinch_ratio
+        self.last_pinch_ratio = ratio
+
+        pinch_down = self.cfg.pinch_click_down_ratio
+        quick_close = (
+            ratio < (pinch_down + self.cfg.pinch_quick_close_bonus)
+            and ratio_velocity < self.cfg.pinch_quick_close_velocity
+        )
+
+        if self.pinch_active:
+            if ratio > self.cfg.pinch_click_up_ratio:
+                self.pinch_active = False
+        else:
+            if ratio < pinch_down or quick_close:
+                self.pinch_active = True
+
+        if self.pinch_active or quick_close:
+            self.pointer_lock_until_ms = max(self.pointer_lock_until_ms, now_ms + self.cfg.pointer_click_lock_ms)
+
+        return self.pinch_active
 
     def update(self, landmarks: list[list[float]]) -> list[str]:
         events: list[str] = []
+
+        now_ms = _now_ms()
+
+        click_mode = (self.cfg.click_gesture or "pinch").strip().lower()
+        click_pressed = False
+        if self.cfg.click_enabled:
+            if click_mode == "pinch":
+                click_pressed = self._pinch_click(landmarks, now_ms)
+            else:
+                click_pressed = self._index_fold_click(landmarks)
+                if click_pressed:
+                    self.pointer_lock_until_ms = max(self.pointer_lock_until_ms, now_ms + self.cfg.pointer_click_lock_ms)
 
         index_tip = landmarks[8]
         target_x = max(0.0, min(1.0, 1.0 - index_tip[0]))
         target_y = max(0.0, min(1.0, index_tip[1]))
 
-        self.pointer_x = self.pointer_x + (target_x - self.pointer_x) * self.cfg.pointer_smoothing
-        self.pointer_y = self.pointer_y + (target_y - self.pointer_y) * self.cfg.pointer_smoothing
+        dx = target_x - self.pointer_x
+        dy = target_y - self.pointer_y
+        movement = math.sqrt(dx * dx + dy * dy)
+        pointer_locked = now_ms < self.pointer_lock_until_ms or (click_mode == "pinch" and self.pinch_active)
+
+        if movement >= self.cfg.pointer_deadzone:
+            if not (pointer_locked and movement < self.cfg.pointer_click_lock_threshold):
+                alpha = self._pointer_alpha(movement)
+                if pointer_locked:
+                    alpha = min(alpha, self.cfg.pointer_click_lock_alpha)
+                self.pointer_x = self.pointer_x + dx * alpha
+                self.pointer_y = self.pointer_y + dy * alpha
 
         if self.cfg.pointer_enabled:
             width, height = pyautogui.size()
@@ -355,14 +459,16 @@ class PointerController:
             pyautogui.moveTo(px, py, duration=0)
 
         if self.cfg.click_enabled:
-            pinch_dist = self._distance(landmarks[4], landmarks[8])
-            pinching = pinch_dist < self.cfg.pinch_click_threshold
-            if pinching and not self.pinch_latched:
+            selected_cooldown = self.cfg.index_fold_min_cooldown_ms if click_mode == "index_fold" else self.cfg.click_min_cooldown_ms
+            cooldown_ok = now_ms - self.last_click_ms >= max(180, selected_cooldown)
+            if click_pressed and not self.click_latched and cooldown_ok:
                 pyautogui.click()
-                self.pinch_latched = True
+                self.click_latched = True
+                self.last_click_ms = now_ms
+                self.pointer_lock_until_ms = max(self.pointer_lock_until_ms, now_ms + self.cfg.pointer_click_lock_ms)
                 events.append("Mouse click")
-            elif not pinching:
-                self.pinch_latched = False
+            elif not click_pressed:
+                self.click_latched = False
 
         if self.cfg.scroll_enabled:
             index_extended = self._is_finger_extended(landmarks[8], landmarks[6])
@@ -435,8 +541,21 @@ def draw_preview(
 
 def choose_profile(client: BackendClient, requested_profile_id: str) -> tuple[str, int]:
     if requested_profile_id:
-        profile = client.get_profile(requested_profile_id)
-        return str(profile["id"]), int(profile.get("sequence_length", 16))
+        requested = requested_profile_id.strip()
+        candidates = [requested]
+        if requested and not requested.startswith("profile_"):
+            candidates.insert(0, f"profile_{requested}")
+
+        for candidate in candidates:
+            try:
+                profile = client.get_profile(candidate)
+                return str(profile["id"]), int(profile.get("sequence_length", 16))
+            except requests.HTTPError as exc:
+                status_code = exc.response.status_code if exc.response is not None else None
+                if status_code != 404:
+                    raise
+
+        print(f"Requested profile not found: {requested_profile_id}. Falling back to latest available profile.")
 
     profiles = client.list_profiles()
     if not profiles:
@@ -581,6 +700,7 @@ def run(cfg: AgentConfig) -> None:
 
                     accepted = bool(prediction.get("accepted", False))
                     label_raw = str(prediction.get("label") or "").strip().lower()
+                    confidence = float(prediction.get("confidence") or 0.0)
 
                     if not accepted or not label_raw:
                         prediction_trail.clear()
@@ -588,11 +708,24 @@ def run(cfg: AgentConfig) -> None:
                     else:
                         prediction_trail.append(label_raw)
                         stable_votes = sum(1 for item in prediction_trail if item == label_raw)
-                        stable = stable_votes >= 2
+                        required_votes = cfg.pinch_stable_votes if label_raw == "pinch" else cfg.non_pinch_stable_votes
+                        required_votes = max(1, required_votes)
+                        required_conf = cfg.min_confidence + (
+                            cfg.action_confidence_boost_pinch
+                            if label_raw == "pinch"
+                            else cfg.action_confidence_boost_non_pinch
+                        )
+                        required_conf = min(0.99, max(0.0, required_conf))
+                        stable = stable_votes >= required_votes and confidence >= required_conf
+
+                        if not stable:
+                            if confidence < required_conf:
+                                status = f"LOW CONF {label_raw} ({confidence * 100:.1f}%<{required_conf * 100:.1f}%)"
+                            else:
+                                status = f"TRACKING {label_raw} ({confidence * 100:.1f}%)"
 
                         if stable and label_raw != latched_gesture:
                             latched_gesture = label_raw
-                            confidence = float(prediction.get("confidence") or 0.0)
                             status = f"DETECTED {label_raw} ({confidence * 100:.1f}%)"
                             print(status)
 

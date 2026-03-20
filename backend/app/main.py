@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.routers.blueprint import router as blueprint_router
+from app.routers.deep import router as deep_router
 from app.routers.health import router as health_router
 from app.routers.lightweight import router as lightweight_router
 from app.routers.sessions import router as sessions_router
@@ -38,6 +39,7 @@ app.include_router(blueprint_router)
 app.include_router(sessions_router)
 app.include_router(training_router)
 app.include_router(lightweight_router)
+app.include_router(deep_router)
 
 if FRONTEND_DIST.exists():
     app.mount("/studio", StaticFiles(directory=FRONTEND_DIST, html=True), name="studio_frontend")

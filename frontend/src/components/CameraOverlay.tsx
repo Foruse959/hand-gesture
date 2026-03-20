@@ -309,7 +309,7 @@ export function CameraOverlay({ backendOnline }: CameraOverlayProps) {
           aria-label={minimized ? 'Expand panel' : 'Minimize panel'}
           title={minimized ? 'Expand panel' : 'Minimize panel'}
         >
-          {minimized ? '+' : '−'}
+          {minimized ? '+' : '-'}
         </button>
         <div className="overlay-head">
           <div>
@@ -406,6 +406,24 @@ export function CameraOverlay({ backendOnline }: CameraOverlayProps) {
               </button>
             </div>
           </>
+        )}
+
+        {minimized && (
+          <div className="overlay-mini-shell">
+            <div className="overlay-mini-status">
+              <span>{isStreaming ? 'Camera active' : 'Camera idle'}</span>
+              <strong>{handDetected ? 'Hand detected' : 'Show hand to track'}</strong>
+            </div>
+            {error && <p className="inline-error">{error}</p>}
+            <div className="overlay-mini-actions">
+              <button type="button" className="primary-button" onClick={isStreaming ? stop : start}>
+                {isStreaming ? 'Stop camera' : 'Start camera'}
+              </button>
+              <button type="button" className="secondary-button" onClick={() => setPointerMode((value) => !value)}>
+                {pointerMode ? 'Pointer on' : 'Pointer off'}
+              </button>
+            </div>
+          </div>
         )}
       </aside>
 

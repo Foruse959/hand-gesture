@@ -3,20 +3,24 @@ from __future__ import annotations
 import hmac
 import os
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException  # type: ignore[import-not-found]
 
 from app.lightweight_schemas import (
     ExecuteMappingRequest,
+    GestureDeleteRequest,
     GestureProfile,
+    GestureRenameRequest,
     MappingExecutionResult,
     MappingUpdateRequest,
     PredictionRequest,
     PredictionResult,
     ProfileCreate,
+    TrainClipRequest,
+    TrainClipResult,
     TrainResult,
     TrainSequenceRequest,
 )
-from app.state import light_engine
+from app.state import deep_engine, light_engine
 
 
 def _verify_light_api_token(x_dgs_token: str | None = Header(default=None, alias="X-DGS-Token")) -> None:
@@ -53,10 +57,38 @@ def get_profile(profile_id: str) -> GestureProfile:
     return profile
 
 
+@router.delete("/profiles/{profile_id}")
+def delete_profile(profile_id: str) -> dict[str, str]:
+    profile = light_engine.get_profile(profile_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    try:
+        deep_engine.delete_profile_artifacts(profile_id)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not remove local model artifacts: {exc}") from exc
+
+    light_engine.delete_profile(profile_id)
+    return {"detail": f"Deleted profile {profile.name} ({profile.id}) and local profile data."}
+
+
 @router.post("/train", response_model=TrainResult)
 def train_sequence(payload: TrainSequenceRequest) -> TrainResult:
     try:
         return light_engine.train(payload.profile_id, payload.label, payload.sequence)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/train_clip", response_model=TrainClipResult)
+def train_clip(payload: TrainClipRequest) -> TrainClipResult:
+    try:
+        return light_engine.train_clip(
+            payload.profile_id,
+            payload.label,
+            payload.clip,
+            payload.sample_count,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -78,6 +110,22 @@ def predict_sequence(payload: PredictionRequest) -> PredictionResult:
 def update_mapping(payload: MappingUpdateRequest) -> GestureProfile:
     try:
         return light_engine.set_mapping(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/labels/rename", response_model=GestureProfile)
+def rename_label(payload: GestureRenameRequest) -> GestureProfile:
+    try:
+        return light_engine.rename_label(payload.profile_id, payload.old_label, payload.new_label)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/labels/delete", response_model=GestureProfile)
+def delete_label(payload: GestureDeleteRequest) -> GestureProfile:
+    try:
+        return light_engine.delete_label(payload.profile_id, payload.label)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
